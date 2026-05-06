@@ -536,7 +536,7 @@ class ImageCutterApp:
                 thumb_w, thumb_h = thumb.size
                 offset_x = (600 - thumb_w) // 2
                 offset_y = (600 - thumb_h) // 2
-                x1, y1, x2, y2 = self.cut_log[fname]
+                x1, y1, x2, y2 = self.cut_log[fname][:4]
                 tx1, ty1 = min(x1, x2) - offset_x, min(y1, y2) - offset_y
                 tx2, ty2 = max(x1, x2) - offset_x, max(y1, y2) - offset_y
                 
