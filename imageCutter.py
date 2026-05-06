@@ -2,21 +2,27 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
+import json
 
 class ImageCutterApp:
     def __init__(self, master):
         self.master = master
         self.master.title("Batch Image Cutter")
+        self.status_label = None
+
+        # Load settings
+        self.settings = self.load_settings()
+
         self.image_list = []
         self.current_index = 0
         self.rect = None
         self.start_x = None
         self.start_y = None
         self.crop_box = None
-        self.output_width = tk.IntVar(value=512)
-        self.output_height = tk.IntVar(value=512)
-        self.default_image_folder = r"C:\work\ai\start"
-        self.default_save_folder = r"C:\work\ai\startOut"
+        self.output_width = tk.IntVar(value=self.settings.get("output_width", 512))
+        self.output_height = tk.IntVar(value=self.settings.get("output_height", 512))
+        self.default_image_folder = self.settings.get("default_image_folder", r"C:\work\ai\start")
+        self.default_save_folder = self.settings.get("default_save_folder", r"C:\work\ai\startOut")
         self.image_folder = self.default_image_folder
         self.save_folder = self.default_save_folder
         self.img = None
@@ -31,12 +37,21 @@ class ImageCutterApp:
         self.image_listbox = None
         self.cut_log = {}
         self.cut_log_path = None
-        self.status_label = None
 
         # UI setup
         self.setup_ui()
         self.master.bind('w', lambda e: self.prev_image())
         self.master.bind('e', lambda e: self.next_image())
+
+    def load_settings(self):
+        settings_path = "set.json"
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"설정 파일 로드 오류: {e}")
+        return {}
 
     def setup_ui(self):
         # 전체 프레임 좌우 분할
