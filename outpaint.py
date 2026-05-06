@@ -3,82 +3,104 @@ import torch
 from PIL import Image, ImageOps
 from diffusers import StableDiffusionInpaintPipeline
 
-def main():
-    img_path = r"images\temp01.png"
-    output_dir = "output"
-    model_dir = "model"
-    target_size = 512
+class Outpainter:
+    def __init__(self, model_dir="model"):
+        self.model_dir = model_dir
+        self.pipe = None
+        
+    def load_model(self):
+        if self.pipe is not None:
+            return
+            
+        print("로컬 AI 모델 로딩 중 (최초 실행 시 시간이 걸릴 수 있습니다)...")
+        # 모델 캐시 경로 보장
+        os.makedirs(self.model_dir, exist_ok=True)
+        
+        self.pipe = StableDiffusionInpaintPipeline.from_pretrained(
+            "runwayml/stable-diffusion-inpainting",
+            cache_dir=self.model_dir,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            safety_checker=None
+        )
 
-    # 디렉토리 생성
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(model_dir, exist_ok=True)
+        # 하드웨어 가속 설정
+        if torch.cuda.is_available():
+            self.pipe = self.pipe.to("cuda")
+        elif torch.backends.mps.is_available():
+            self.pipe = self.pipe.to("mps")
+        else:
+            self.pipe = self.pipe.to("cpu")
+            
+        print("모델 로딩 완료.")
 
-    # 이미지 확인 (없으면 테스트용 임시 이미지 생성)
-    if not os.path.exists(img_path):
-        print(f"Warning: {img_path} not found. Creating a dummy image for testing.")
-        os.makedirs(os.path.dirname(img_path), exist_ok=True)
-        dummy = Image.new("RGBA", (256, 256), (255, 0, 0, 255))
-        dummy.save(img_path)
+    def run(self, img_path, output_path=None, prompt=None):
+        self.load_model()
+        
+        if not os.path.exists(img_path):
+            print(f"Error: {img_path} 파일을 찾을 수 없습니다.")
+            return None
 
-    print("로컬 모델 로딩 중 (필요시 model/ 에 다운로드됩니다)...")
-    pipe = StableDiffusionInpaintPipeline.from_pretrained(
-        "runwayml/stable-diffusion-inpainting",
-        cache_dir=model_dir,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        safety_checker=None
-    )
+        # 이미지 로드 및 RGBA 변환
+        img = Image.open(img_path).convert("RGBA")
+        width, height = img.size
+        
+        # Stable Diffusion 모델은 가로세로가 8의 배수여야 합니다.
+        gen_w = (width // 8) * 8
+        gen_h = (height // 8) * 8
+        
+        if gen_w != width or gen_h != height:
+            print(f"해상도 조정: {width}x{height} -> {gen_w}x{gen_h}")
+            img = img.resize((gen_w, gen_h), Image.LANCZOS)
+            width, height = gen_w, gen_h
 
-    if torch.cuda.is_available():
-        pipe = pipe.to("cuda")
-    elif torch.backends.mps.is_available():
-        pipe = pipe.to("mps")
-    else:
-        pipe = pipe.to("cpu")
+        # 1. 원본 이미지를 흰색 배경의 RGB 이미지로 변환 (SD 인페인트 입력용)
+        init_image_rgb = Image.new("RGB", (width, height), (255, 255, 255))
+        # 알파 채널을 마스크로 사용하여 투명하지 않은 부분만 붙여넣기
+        init_image_rgb.paste(img, mask=img.split()[3])
 
-    print(f"이미지 준비 중: {img_path}")
-    original_image = Image.open(img_path).convert("RGBA")
-    
-    # 512x512 투명 캔버스 생성
-    init_image = Image.new("RGBA", (target_size, target_size), (0, 0, 0, 0))
+        # 2. 마스크 이미지 생성 (투명한 영역 = 칠해야 할 곳 = 흰색)
+        alpha = img.split()[3]
+        mask_image = ImageOps.invert(alpha)
 
-    # 원본 이미지가 512x512보다 크면 축소
-    img_w, img_h = original_image.size
-    ratio = min((target_size - 64) / img_w, (target_size - 64) / img_h)
-    if ratio < 1.0:
-        new_w, new_h = int(img_w * ratio), int(img_h * ratio)
-        original_image = original_image.resize((new_w, new_h), Image.LANCZOS)
-    else:
-        new_w, new_h = img_w, img_h
+        # 3. 프롬프트 설정
+        if prompt is None:
+            prompt = "high quality, seamless background extension, highly detailed, realistic scenery"
+        negative_prompt = "low resolution, ugly, blurry, borders, edges, artifacts, text, watermark"
 
-    # 중앙 배치
-    offset_x = (target_size - new_w) // 2
-    offset_y = (target_size - new_h) // 2
-    init_image.paste(original_image, (offset_x, offset_y), original_image)
+        print(f"아웃페인트 생성 시작 (크기: {width}x{height})...")
+        # 생성 실행
+        result_image = self.pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            image=init_image_rgb,
+            mask_image=mask_image,
+            num_inference_steps=20,
+            guidance_scale=7.5
+        ).images[0]
 
-    # RGB로 변환 (SD는 RGB 사용)
-    init_image_rgb = Image.new("RGB", (target_size, target_size), (255, 255, 255))
-    init_image_rgb.paste(init_image, mask=init_image.split()[3])
+        # 4. 결과 저장
+        if output_path:
+            out_dir = os.path.dirname(output_path)
+            if out_dir:
+                os.makedirs(out_dir, exist_ok=True)
+            result_image.save(output_path)
+            print(f"결과 저장 완료: {output_path}")
+            
+        return result_image
 
-    # 마스크 이미지 생성: Alpha 채널을 반전시킴 (투명한 배경=흰색=인페인트 영역)
-    alpha = init_image.split()[3]
-    mask_image = ImageOps.invert(alpha)
+# 외부 파일에서 간편하게 호출하기 위한 함수
+_painter_instance = None
 
-    prompt = "high quality, seamless background extension, highly detailed, realistic scenery"
-    negative_prompt = "low resolution, ugly, blurry, borders, edges, artifacts"
-
-    print("아웃페인트(Inpaint) 생성 시작...")
-    result_image = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        image=init_image_rgb,
-        mask_image=mask_image,
-        num_inference_steps=20,
-        guidance_scale=7.5
-    ).images[0]
-
-    output_path = os.path.join(output_dir, "output.png")
-    result_image.save(output_path)
-    print(f"완료! 결과물이 저장되었습니다: {output_path}")
+def apply_outpaint(img_path, output_path=None, prompt=None):
+    global _painter_instance
+    if _painter_instance is None:
+        _painter_instance = Outpainter()
+    return _painter_instance.run(img_path, output_path, prompt)
 
 if __name__ == "__main__":
-    main()
+    # 테스트 실행
+    test_img = r"images\temp01.png"
+    if os.path.exists(test_img):
+        apply_outpaint(test_img, r"output\test_function_result.png")
+    else:
+        print("테스트할 이미지가 없습니다. images\\temp01.png 를 확인해 주세요.")
