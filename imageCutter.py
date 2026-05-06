@@ -139,6 +139,7 @@ class ImageCutterApp:
             self.current_index = 0
             self.cut_log_path = os.path.join(self.image_folder, "cut.log")
             self.load_cut_log()
+            self.sort_initial_image_list()
             self.update_image_listbox()
             self.load_image()
 
@@ -157,6 +158,7 @@ class ImageCutterApp:
             self.current_index = 0
             self.cut_log_path = os.path.join(self.image_folder, "cut.log")
             self.load_cut_log()
+            self.sort_initial_image_list()
             self.update_image_listbox()
             self.load_image()
         else:
@@ -197,6 +199,13 @@ class ImageCutterApp:
         if not resolution_found and self.cut_log_path:
             self.save_cut_log()
 
+    def sort_initial_image_list(self):
+        if not self.image_list:
+            return
+        not_in_log = [f for f in self.image_list if f not in self.cut_log]
+        in_log = [f for f in self.image_list if f in self.cut_log]
+        self.image_list = not_in_log + in_log
+
     def save_cut_log(self):
         if not self.cut_log_path:
             return
@@ -212,23 +221,10 @@ class ImageCutterApp:
                 f.write(",".join(line_data) + "\n")
 
     def update_image_listbox(self):
+        self.image_listbox.delete(0, tk.END)
         if not self.image_list:
-            self.image_listbox.delete(0, tk.END)
             return
 
-        # 현재 선택된 이미지 파일명 기억
-        current_fname = self.image_list[self.current_index] if self.image_list else None
-
-        # 정렬: 로그에 없는 이미지를 위로, 있는 이미지를 아래로
-        not_in_log = [f for f in self.image_list if f not in self.cut_log]
-        in_log = [f for f in self.image_list if f in self.cut_log]
-        self.image_list = not_in_log + in_log
-
-        # 인덱스 재계산
-        if current_fname in self.image_list:
-            self.current_index = self.image_list.index(current_fname)
-
-        self.image_listbox.delete(0, tk.END)
         for idx, fname in enumerate(self.image_list):
             self.image_listbox.insert(tk.END, fname)
             if fname in self.cut_log:
