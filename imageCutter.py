@@ -6,14 +6,15 @@ from PIL import Image, ImageTk
 class ImageCutterApp:
     def __init__(self, master):
         self.master = master
-        self.master.title("Batch Square Image Cutter")
+        self.master.title("Batch Image Cutter")
         self.image_list = []
         self.current_index = 0
         self.rect = None
         self.start_x = None
         self.start_y = None
         self.crop_box = None
-        self.output_size = tk.IntVar(value=512)
+        self.output_width = tk.IntVar(value=512)
+        self.output_height = tk.IntVar(value=512)
         self.default_image_folder = r"C:\work\ai\start"
         self.default_save_folder = r"C:\work\ai\startOut"
         self.image_folder = self.default_image_folder
@@ -79,8 +80,10 @@ class ImageCutterApp:
         # 상단 컨트롤
         ctrl_frame = tk.Frame(right_frame)
         ctrl_frame.pack(side=tk.TOP, fill=tk.X)
-        tk.Label(ctrl_frame, text="출력 해상도:").pack(side=tk.LEFT)
-        tk.Entry(ctrl_frame, textvariable=self.output_size, width=5).pack(side=tk.LEFT)
+        tk.Label(ctrl_frame, text="가로:").pack(side=tk.LEFT)
+        tk.Entry(ctrl_frame, textvariable=self.output_width, width=5).pack(side=tk.LEFT)
+        tk.Label(ctrl_frame, text="세로:").pack(side=tk.LEFT)
+        tk.Entry(ctrl_frame, textvariable=self.output_height, width=5).pack(side=tk.LEFT)
         tk.Button(ctrl_frame, text="저장", command=self.save_crop).pack(side=tk.LEFT)
         tk.Button(ctrl_frame, text="다음", command=self.next_image).pack(side=tk.LEFT)
         tk.Button(ctrl_frame, text="이전", command=self.prev_image).pack(side=tk.LEFT)
@@ -270,51 +273,35 @@ class ImageCutterApp:
             coords = list(self.canvas.coords(self.rect))
             x1, y1, x2, y2 = coords
             # 네 꼭짓점 중 어느 핸들인지에 따라 좌표 조정
+            ar = self.output_width.get() / max(1, self.output_height.get())
             if self.active_handle == 0:  # 좌상
                 new_x, new_y = event.x, event.y
-                # 정사각형 유지
-                side = min(abs(x2 - new_x), abs(y2 - new_y))
-                if x2 > new_x:
-                    x1 = x2 - side
-                else:
-                    x1 = x2 + side
-                if y2 > new_y:
-                    y1 = y2 - side
-                else:
-                    y1 = y2 + side
+                dx, dy = abs(x2 - new_x), abs(y2 - new_y)
+                if dx / ar < dy: dy = dx / ar
+                else: dx = dy * ar
+                x1 = x2 - dx if x2 > new_x else x2 + dx
+                y1 = y2 - dy if y2 > new_y else y2 + dy
             elif self.active_handle == 1:  # 우상
                 new_x, new_y = event.x, event.y
-                side = min(abs(new_x - x1), abs(y2 - new_y))
-                if new_x > x1:
-                    x2 = x1 + side
-                else:
-                    x2 = x1 - side
-                if y2 > new_y:
-                    y1 = y2 - side
-                else:
-                    y1 = y2 + side
+                dx, dy = abs(new_x - x1), abs(y2 - new_y)
+                if dx / ar < dy: dy = dx / ar
+                else: dx = dy * ar
+                x2 = x1 + dx if new_x > x1 else x1 - dx
+                y1 = y2 - dy if y2 > new_y else y2 + dy
             elif self.active_handle == 2:  # 우하
                 new_x, new_y = event.x, event.y
-                side = min(abs(new_x - x1), abs(new_y - y1))
-                if new_x > x1:
-                    x2 = x1 + side
-                else:
-                    x2 = x1 - side
-                if new_y > y1:
-                    y2 = y1 + side
-                else:
-                    y2 = y1 - side
+                dx, dy = abs(new_x - x1), abs(new_y - y1)
+                if dx / ar < dy: dy = dx / ar
+                else: dx = dy * ar
+                x2 = x1 + dx if new_x > x1 else x1 - dx
+                y2 = y1 + dy if new_y > y1 else y1 - dy
             elif self.active_handle == 3:  # 좌하
                 new_x, new_y = event.x, event.y
-                side = min(abs(x2 - new_x), abs(new_y - y1))
-                if x2 > new_x:
-                    x1 = x2 - side
-                else:
-                    x1 = x2 + side
-                if new_y > y1:
-                    y2 = y1 + side
-                else:
-                    y2 = y1 - side
+                dx, dy = abs(x2 - new_x), abs(new_y - y1)
+                if dx / ar < dy: dy = dx / ar
+                else: dx = dy * ar
+                x1 = x2 - dx if x2 > new_x else x2 + dx
+                y2 = y1 + dy if new_y > y1 else y1 - dy
             self.canvas.coords(self.rect, x1, y1, x2, y2)
             self.update_handles()
             self.update_info_label()
@@ -329,11 +316,13 @@ class ImageCutterApp:
             self.update_info_label()
         elif self.rect:
             # 새 사각형 드래그
-            dx = event.x - self.start_x
-            dy = event.y - self.start_y
-            side = min(abs(dx), abs(dy))
-            end_x = self.start_x + side if dx >= 0 else self.start_x - side
-            end_y = self.start_y + side if dy >= 0 else self.start_y - side
+            ar = self.output_width.get() / max(1, self.output_height.get())
+            dx = abs(event.x - self.start_x)
+            dy = abs(event.y - self.start_y)
+            if dx / ar < dy: dy = dx / ar
+            else: dx = dy * ar
+            end_x = self.start_x + dx if event.x >= self.start_x else self.start_x - dx
+            end_y = self.start_y + dy if event.y >= self.start_y else self.start_y - dy
             self.canvas.coords(self.rect, self.start_x, self.start_y, end_x, end_y)
             self.update_handles()
             self.update_info_label()
@@ -415,9 +404,11 @@ class ImageCutterApp:
                 
                 # 품질 인디케이터 색상 결정
                 sel_w = ix2 - ix1
+                sel_h = iy2 - iy1
                 try:
-                    out_w = self.output_size.get()
-                    indicator_color = "green" if sel_w >= out_w else "red"
+                    out_w = self.output_width.get()
+                    out_h = self.output_height.get()
+                    indicator_color = "green" if sel_w >= out_w and sel_h >= out_h else "red"
                 except:
                     indicator_color = "yellow"
 
@@ -462,9 +453,9 @@ class ImageCutterApp:
             cropped_part = self.img.crop((sx1, sy1, sx2, sy2))
             result_img.paste(cropped_part, (sx1 - ix1, sy1 - iy1))
             
-        size = self.output_size.get()
-        result_img = result_img.resize((size, size), Image.LANCZOS)
-        save_name = f"square_{os.path.splitext(self.image_list[self.current_index])[0]}.png"
+        out_w, out_h = self.output_width.get(), self.output_height.get()
+        result_img = result_img.resize((out_w, out_h), Image.LANCZOS)
+        save_name = f"crop_{os.path.splitext(self.image_list[self.current_index])[0]}.png"
         save_path = os.path.join(self.save_folder, save_name)
         result_img.save(save_path, format="PNG")
         self.set_status(f"{save_name} 저장됨.")
@@ -503,9 +494,9 @@ class ImageCutterApp:
                         cropped_part = img.crop((sx1, sy1, sx2, sy2))
                         result_img.paste(cropped_part, (sx1 - ix1, sy1 - iy1))
                         
-                    size = self.output_size.get()
-                    result_img = result_img.resize((size, size), Image.LANCZOS)
-                    save_name = f"square_{os.path.splitext(fname)[0]}.png"
+                    out_w, out_h = self.output_width.get(), self.output_height.get()
+                    result_img = result_img.resize((out_w, out_h), Image.LANCZOS)
+                    save_name = f"crop_{os.path.splitext(fname)[0]}.png"
                     save_path = os.path.join(self.save_folder, save_name)
                     result_img.save(save_path, format="PNG")
                     count += 1
