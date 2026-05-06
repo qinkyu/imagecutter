@@ -161,18 +161,35 @@ class ImageCutterApp:
 
     def load_cut_log(self):
         self.cut_log = {}
+        resolution_found = False
         if self.cut_log_path and os.path.exists(self.cut_log_path):
             with open(self.cut_log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     parts = line.strip().split(",")
-                    if len(parts) == 5:
+                    if len(parts) == 3 and parts[0] == "RESOLUTION":
+                        try:
+                            self.output_width.set(int(parts[1]))
+                            self.output_height.set(int(parts[2]))
+                            resolution_found = True
+                        except ValueError:
+                            pass
+                    elif len(parts) == 5:
                         fname, x1, y1, x2, y2 = parts
                         self.cut_log[fname] = (int(x1), int(y1), int(x2), int(y2))
+        
+        if not resolution_found and self.cut_log_path:
+            self.save_cut_log()
 
     def save_cut_log(self):
         if not self.cut_log_path:
             return
         with open(self.cut_log_path, "w", encoding="utf-8") as f:
+            try:
+                w = self.output_width.get()
+                h = self.output_height.get()
+            except tk.TclError:
+                w, h = 512, 512
+            f.write(f"RESOLUTION,{w},{h}\n")
             for fname, (x1, y1, x2, y2) in self.cut_log.items():
                 f.write(f"{fname},{x1},{y1},{x2},{y2}\n")
 
