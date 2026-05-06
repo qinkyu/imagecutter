@@ -42,6 +42,8 @@ class ImageCutterApp:
         self.setup_ui()
         self.master.bind('w', lambda e: self.prev_image())
         self.master.bind('e', lambda e: self.next_image())
+        self.master.bind('q', lambda e: self.save_crop())
+        self.master.bind('r', lambda e: self.batch_cut())
 
     def load_settings(self):
         settings_path = "set.json"
@@ -99,10 +101,10 @@ class ImageCutterApp:
         tk.Entry(ctrl_frame, textvariable=self.output_width, width=5).pack(side=tk.LEFT)
         tk.Label(ctrl_frame, text="세로:").pack(side=tk.LEFT)
         tk.Entry(ctrl_frame, textvariable=self.output_height, width=5).pack(side=tk.LEFT)
-        tk.Button(ctrl_frame, text="저장", command=self.save_crop).pack(side=tk.LEFT)
-        tk.Button(ctrl_frame, text="다음", command=self.next_image).pack(side=tk.LEFT)
-        tk.Button(ctrl_frame, text="이전", command=self.prev_image).pack(side=tk.LEFT)
-        tk.Button(ctrl_frame, text="배치실행", command=self.batch_cut).pack(side=tk.LEFT)
+        tk.Button(ctrl_frame, text="저장:q", command=self.save_crop).pack(side=tk.LEFT)
+        tk.Button(ctrl_frame, text="다음:w", command=self.next_image).pack(side=tk.LEFT)
+        tk.Button(ctrl_frame, text="이전:e", command=self.prev_image).pack(side=tk.LEFT)
+        tk.Button(ctrl_frame, text="배치실행:r", command=self.batch_cut).pack(side=tk.LEFT)
 
         # 캔버스
         self.canvas = tk.Canvas(right_frame, width=600, height=600, cursor="cross", bg="black")
