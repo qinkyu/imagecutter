@@ -13,4 +13,8 @@ pip-delete-this-directory.txt
 .DS_Store
 build/
 dist/
+images/
+output/
+model/
 *.spec
+
