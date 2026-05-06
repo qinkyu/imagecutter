@@ -93,8 +93,16 @@ class ImageCutterApp:
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
 
-        self.info_label = tk.Label(right_frame, text="영역 좌표: 없음 [해상도: -]")
-        self.info_label.pack(side=tk.BOTTOM, fill=tk.X)
+        # 하단 정보 프레임 (인디케이터 + 라벨)
+        info_frame = tk.Frame(right_frame)
+        info_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        self.indicator = tk.Canvas(info_frame, width=15, height=15, bg="white", highlightthickness=0)
+        self.indicator.pack(side=tk.LEFT, padx=5)
+        self.indicator_circle = self.indicator.create_oval(2, 2, 13, 13, fill="gray")
+
+        self.info_label = tk.Label(info_frame, text="영역 좌표: 없음 [해상도: -]")
+        self.info_label.pack(side=tk.LEFT, fill=tk.X)
         self.status_label = tk.Label(self.master, text="", fg="green", anchor="w")
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -389,6 +397,7 @@ class ImageCutterApp:
 
     def update_info_label(self):
         res_info = ""
+        indicator_color = "gray"
         if self.img:
             img_w, img_h = self.img.size
             res_info = f" [해상도: {img_w}x{img_h}]"
@@ -404,10 +413,20 @@ class ImageCutterApp:
                 ix2 = int((max(x1, x2) - offset_x) * scale_x)
                 iy2 = int((max(y1, y2) - offset_y) * scale_y)
                 
+                # 품질 인디케이터 색상 결정
+                sel_w = ix2 - ix1
+                try:
+                    out_w = self.output_size.get()
+                    indicator_color = "green" if sel_w >= out_w else "red"
+                except:
+                    indicator_color = "yellow"
+
                 self.info_label.config(text=f"영역 좌표: ({ix1}, {iy1}) ~ ({ix2}, {iy2}){res_info}")
+                self.indicator.itemconfig(self.indicator_circle, fill=indicator_color)
                 return
 
         self.info_label.config(text=f"영역 좌표: 없음{res_info}")
+        self.indicator.itemconfig(self.indicator_circle, fill=indicator_color)
 
     def set_status(self, msg):
         self.status_label.config(text=msg)
