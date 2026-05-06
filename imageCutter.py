@@ -504,8 +504,8 @@ class ImageCutterApp:
         crop_w, crop_h = ix2 - ix1, iy2 - iy1
         if crop_w <= 0 or crop_h <= 0: return
 
-        # 블랙 배경 생성 및 유효 영역 복사
-        result_img = Image.new("RGB", (crop_w, crop_h), "black")
+        # 투명 배경 생성 및 유효 영역 복사
+        result_img = Image.new("RGBA", (crop_w, crop_h), (0, 0, 0, 0))
         sx1, sy1 = max(0, ix1), max(0, iy1)
         sx2, sy2 = min(img_w, ix2), min(img_h, iy2)
         
@@ -546,7 +546,7 @@ class ImageCutterApp:
                 
                 crop_w, crop_h = ix2 - ix1, iy2 - iy1
                 if crop_w > 0 and crop_h > 0:
-                    result_img = Image.new("RGB", (crop_w, crop_h), "black")
+                    result_img = Image.new("RGBA", (crop_w, crop_h), (0, 0, 0, 0))
                     sx1, sy1 = max(0, ix1), max(0, iy1)
                     sx2, sy2 = min(img_w, ix2), min(img_h, iy2)
                     
