@@ -190,9 +190,9 @@ class ImageCutterApp:
                             resolution_found = True
                         except ValueError:
                             pass
-                    elif len(parts) == 5:
-                        fname, x1, y1, x2, y2 = parts
-                        self.cut_log[fname] = (int(x1), int(y1), int(x2), int(y2))
+                    elif len(parts) >= 5:
+                        fname = parts[0]
+                        self.cut_log[fname] = tuple(map(int, parts[1:]))
         
         if not resolution_found and self.cut_log_path:
             self.save_cut_log()
@@ -207,18 +207,48 @@ class ImageCutterApp:
             except tk.TclError:
                 w, h = 512, 512
             f.write(f"RESOLUTION,{w},{h}\n")
-            for fname, (x1, y1, x2, y2) in self.cut_log.items():
-                f.write(f"{fname},{x1},{y1},{x2},{y2}\n")
+            for fname, data in self.cut_log.items():
+                line_data = [fname] + [str(d) for d in data]
+                f.write(",".join(line_data) + "\n")
 
     def update_image_listbox(self):
+        if not self.image_list:
+            self.image_listbox.delete(0, tk.END)
+            return
+
+        # 현재 선택된 이미지 파일명 기억
+        current_fname = self.image_list[self.current_index] if self.image_list else None
+
+        # 정렬: 로그에 없는 이미지를 위로, 있는 이미지를 아래로
+        not_in_log = [f for f in self.image_list if f not in self.cut_log]
+        in_log = [f for f in self.image_list if f in self.cut_log]
+        self.image_list = not_in_log + in_log
+
+        # 인덱스 재계산
+        if current_fname in self.image_list:
+            self.current_index = self.image_list.index(current_fname)
+
         self.image_listbox.delete(0, tk.END)
         for idx, fname in enumerate(self.image_list):
             self.image_listbox.insert(tk.END, fname)
             if fname in self.cut_log:
-                self.image_listbox.itemconfig(idx, {'fg': 'blue'})
+                log_data = self.cut_log[fname]
+                color = 'blue'
+                if len(log_data) >= 6:
+                    x1, y1, x2, y2, img_w, img_h = log_data[:6]
+                    # 품질 체크
+                    ratio = min(600/img_w, 600/img_h)
+                    thumb_w = img_w * ratio
+                    scale_x = img_w / thumb_w
+                    sel_w = abs(x2 - x1) * scale_x
+                    try:
+                        if sel_w < self.output_width.get():
+                            color = 'red'
+                    except: pass
+                self.image_listbox.itemconfig(idx, {'fg': color})
             else:
-                self.image_listbox.itemconfig(idx, {'fg': 'black'})
-        # 현재 선택된 이미지 표시
+                self.image_listbox.itemconfig(idx, {'fg': 'gray'})
+
         if self.image_list:
             self.image_listbox.select_clear(0, tk.END)
             self.image_listbox.select_set(self.current_index)
@@ -233,7 +263,7 @@ class ImageCutterApp:
         # 사각형 정보가 있으면 표시
         fname = self.image_list[self.current_index]
         if fname in self.cut_log:
-            x1, y1, x2, y2 = self.cut_log[fname]
+            x1, y1, x2, y2 = self.cut_log[fname][:4]
             # 사각형 및 핸들/중앙 핸들 표시
             if self.rect:
                 self.canvas.delete(self.rect)
@@ -372,7 +402,7 @@ class ImageCutterApp:
             # 사각형 정보 저장
             if self.image_list:
                 fname = self.image_list[self.current_index]
-                self.cut_log[fname] = tuple(map(int, coords))
+                self.cut_log[fname] = (*tuple(map(int, coords)), *self.img.size)
                 self.save_cut_log()
                 self.update_image_listbox()
 
