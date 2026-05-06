@@ -406,35 +406,38 @@ class ImageCutterApp:
         if not self.crop_box or not self.save_folder:
             self.set_status("영역을 선택하고 저장 폴더를 지정하세요.")
             return
-        # 썸네일 기준 좌표로 변환
+
         img_w, img_h = self.img.size
         thumb_w, thumb_h = self.thumb_w, self.thumb_h
         offset_x, offset_y = self.thumb_offset
         x1, y1, x2, y2 = self.crop_box
-        # 썸네일 내 좌표
-        x1_thumb = x1 - offset_x
-        y1_thumb = y1 - offset_y
-        x2_thumb = x2 - offset_x
-        y2_thumb = y2 - offset_y
-        # 썸네일 내 유효 영역만 처리
-        x1_thumb = max(0, min(thumb_w, x1_thumb))
-        y1_thumb = max(0, min(thumb_h, y1_thumb))
-        x2_thumb = max(0, min(thumb_w, x2_thumb))
-        y2_thumb = max(0, min(thumb_h, y2_thumb))
-        # 원본 이미지 기준 좌표로 변환
-        scale_x = img_w / thumb_w
-        scale_y = img_h / thumb_h
-        x1_img = int(x1_thumb * scale_x)
-        y1_img = int(y1_thumb * scale_y)
-        x2_img = int(x2_thumb * scale_x)
-        y2_img = int(y2_thumb * scale_y)
-        crop = (x1_img, y1_img, x2_img, y2_img)
-        cropped_img = self.img.crop(crop)
+        
+        # 썸네일 기준 좌표 (정규화)
+        tx1, ty1 = min(x1, x2) - offset_x, min(y1, y2) - offset_y
+        tx2, ty2 = max(x1, x2) - offset_x, max(y1, y2) - offset_y
+        
+        # 원본 이미지 기준 좌표 변환
+        scale_x, scale_y = img_w / thumb_w, img_h / thumb_h
+        ix1, iy1 = int(tx1 * scale_x), int(ty1 * scale_y)
+        ix2, iy2 = int(tx2 * scale_x), int(ty2 * scale_y)
+        
+        crop_w, crop_h = ix2 - ix1, iy2 - iy1
+        if crop_w <= 0 or crop_h <= 0: return
+
+        # 블랙 배경 생성 및 유효 영역 복사
+        result_img = Image.new("RGB", (crop_w, crop_h), "black")
+        sx1, sy1 = max(0, ix1), max(0, iy1)
+        sx2, sy2 = min(img_w, ix2), min(img_h, iy2)
+        
+        if sx2 > sx1 and sy2 > sy1:
+            cropped_part = self.img.crop((sx1, sy1, sx2, sy2))
+            result_img.paste(cropped_part, (sx1 - ix1, sy1 - iy1))
+            
         size = self.output_size.get()
-        cropped_img = cropped_img.resize((size, size), Image.LANCZOS)
+        result_img = result_img.resize((size, size), Image.LANCZOS)
         save_name = f"square_{os.path.splitext(self.image_list[self.current_index])[0]}.png"
         save_path = os.path.join(self.save_folder, save_name)
-        cropped_img.save(save_path, format="PNG")
+        result_img.save(save_path, format="PNG")
         self.set_status(f"{save_name} 저장됨.")
 
     def batch_cut(self):
@@ -454,28 +457,29 @@ class ImageCutterApp:
                 offset_x = (600 - thumb_w) // 2
                 offset_y = (600 - thumb_h) // 2
                 x1, y1, x2, y2 = self.cut_log[fname]
-                x1_thumb = x1 - offset_x
-                y1_thumb = y1 - offset_y
-                x2_thumb = x2 - offset_x
-                y2_thumb = y2 - offset_y
-                x1_thumb = max(0, min(thumb_w, x1_thumb))
-                y1_thumb = max(0, min(thumb_h, y1_thumb))
-                x2_thumb = max(0, min(thumb_w, x2_thumb))
-                y2_thumb = max(0, min(thumb_h, y2_thumb))
-                scale_x = img_w / thumb_w
-                scale_y = img_h / thumb_h
-                x1_img = int(x1_thumb * scale_x)
-                y1_img = int(y1_thumb * scale_y)
-                x2_img = int(x2_thumb * scale_x)
-                y2_img = int(y2_thumb * scale_y)
-                crop = (x1_img, y1_img, x2_img, y2_img)
-                cropped_img = img.crop(crop)
-                size = self.output_size.get()
-                cropped_img = cropped_img.resize((size, size), Image.LANCZOS)
-                save_name = f"square_{os.path.splitext(fname)[0]}.png"
-                save_path = os.path.join(self.save_folder, save_name)
-                cropped_img.save(save_path, format="PNG")
-                count += 1
+                tx1, ty1 = min(x1, x2) - offset_x, min(y1, y2) - offset_y
+                tx2, ty2 = max(x1, x2) - offset_x, max(y1, y2) - offset_y
+                
+                scale_x, scale_y = img_w / thumb_w, img_h / thumb_h
+                ix1, iy1 = int(tx1 * scale_x), int(ty1 * scale_y)
+                ix2, iy2 = int(tx2 * scale_x), int(ty2 * scale_y)
+                
+                crop_w, crop_h = ix2 - ix1, iy2 - iy1
+                if crop_w > 0 and crop_h > 0:
+                    result_img = Image.new("RGB", (crop_w, crop_h), "black")
+                    sx1, sy1 = max(0, ix1), max(0, iy1)
+                    sx2, sy2 = min(img_w, ix2), min(img_h, iy2)
+                    
+                    if sx2 > sx1 and sy2 > sy1:
+                        cropped_part = img.crop((sx1, sy1, sx2, sy2))
+                        result_img.paste(cropped_part, (sx1 - ix1, sy1 - iy1))
+                        
+                    size = self.output_size.get()
+                    result_img = result_img.resize((size, size), Image.LANCZOS)
+                    save_name = f"square_{os.path.splitext(fname)[0]}.png"
+                    save_path = os.path.join(self.save_folder, save_name)
+                    result_img.save(save_path, format="PNG")
+                    count += 1
         self.set_status(f"{count}개 이미지 저장됨.")
 
     def next_image(self):
