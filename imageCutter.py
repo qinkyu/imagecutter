@@ -98,8 +98,8 @@ class ImageCutterApp:
         self.status_label = tk.Label(self.master, text="", fg="green", anchor="w")
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # 이미지 목록 초기화
-        self.update_image_listbox()
+        # 이미지 목록 초기화 및 자동 로드
+        self.on_image_folder_entry(None)
 
     def select_image_folder(self):
         folder = filedialog.askdirectory(initialdir=self.image_folder)
@@ -339,10 +339,11 @@ class ImageCutterApp:
             self.active_center = False
             self.update_info_label()
             # 사각형 정보 저장
-            fname = self.image_list[self.current_index]
-            self.cut_log[fname] = tuple(map(int, coords))
-            self.save_cut_log()
-            self.update_image_listbox()
+            if self.image_list:
+                fname = self.image_list[self.current_index]
+                self.cut_log[fname] = tuple(map(int, coords))
+                self.save_cut_log()
+                self.update_image_listbox()
 
     def update_handles(self):
         # 사각형 꼭짓점에 핸들 생성/이동, 중앙 핸들 생성/이동
