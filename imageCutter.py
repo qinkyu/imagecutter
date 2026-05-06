@@ -390,14 +390,24 @@ class ImageCutterApp:
     def update_info_label(self):
         res_info = ""
         if self.img:
-            w, h = self.img.size
-            res_info = f" [해상도: {w}x{h}]"
+            img_w, img_h = self.img.size
+            res_info = f" [해상도: {img_w}x{img_h}]"
 
-        if self.rect:
-            x1, y1, x2, y2 = map(int, self.canvas.coords(self.rect))
-            self.info_label.config(text=f"영역 좌표: ({x1}, {y1}) ~ ({x2}, {y2}){res_info}")
-        else:
-            self.info_label.config(text=f"영역 좌표: 없음{res_info}")
+            if self.rect:
+                x1, y1, x2, y2 = map(int, self.canvas.coords(self.rect))
+                thumb_w, thumb_h = self.thumb_w, self.thumb_h
+                offset_x, offset_y = self.thumb_offset
+                
+                scale_x, scale_y = img_w / thumb_w, img_h / thumb_h
+                ix1 = int((min(x1, x2) - offset_x) * scale_x)
+                iy1 = int((min(y1, y2) - offset_y) * scale_y)
+                ix2 = int((max(x1, x2) - offset_x) * scale_x)
+                iy2 = int((max(y1, y2) - offset_y) * scale_y)
+                
+                self.info_label.config(text=f"영역 좌표: ({ix1}, {iy1}) ~ ({ix2}, {iy2}){res_info}")
+                return
+
+        self.info_label.config(text=f"영역 좌표: 없음{res_info}")
 
     def set_status(self, msg):
         self.status_label.config(text=msg)
